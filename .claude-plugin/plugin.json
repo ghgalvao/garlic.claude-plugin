@@ -1,0 +1,21 @@
+{
+  "name": "garlic",
+  "description": "Continuidade agêntica pro workspace multi-repo Garlic (SaaS-starter da G3 Software) — detecta a estrutura ao abrir sessão e automatiza o bootstrap de produto novo.",
+  "author": {
+    "name": "Gabriel Galvão"
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/garlic-detect.js\"",
+            "timeout": 5,
+            "statusMessage": "Detectando workspace Garlic..."
+          }
+        ]
+      }
+    ]
+  }
+}
