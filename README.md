@@ -27,12 +27,19 @@ sessão em repo qualquer.
 Automatiza `bootstrap-new-product.md` (clona os 5 repos renomeando, corta
 histórico git, cria branch `develop`, corrige o `.code-workspace`) via tool
 calls de verdade, não checklist manual. Funciona numa máquina 100% limpa —
-o prompt do comando já embute os passos, não depende de ter clonado
-`garlic.docs` antes só pra ler a receita.
+o skill já embute os passos, não depende de ter clonado `garlic.docs` antes
+só pra ler a receita.
 
 ```
 /garlic:new foodpdv
 ```
+
+Mecanismo real = `skills/new/SKILL.md` (Skill do Claude Code, listada como
+`garlic:new`) — **não** `commands/new.toml`. O `.toml` existe só por
+compatibilidade cruzada com outra ferramenta (Gemini CLI lê comando nesse
+formato); Claude Code em si nunca leu isso como slash command. Mesmo padrão
+do plugin `caveman`: ele também mantém `commands/*.toml` só de brinde, quem
+funciona de verdade lá é `skills/*/SKILL.md`.
 
 ## Instalar
 
@@ -50,9 +57,10 @@ na sessão seguinte.
 .claude-plugin/
   plugin.json        # manifesto — nome, hooks
   marketplace.json    # pra listar num marketplace, se um dia publicar
+skills/
+  new/SKILL.md        # /garlic:new — mecanismo real, é isso que o Claude Code lê
 commands/
-  new.toml            # /garlic:new — description + prompt numa linha só
-                       # (\n escapado pra quebra; TOML multi-linha """...""" não é reconhecido)
+  new.toml            # /garlic:new — só compat cruzada (Gemini CLI etc), ignorado pelo Claude Code
 hooks/
   garlic-detect.js    # SessionStart
 ```
