@@ -1,7 +1,7 @@
 # garlic.claude-plugin
 
-Plugin do Claude Code pro workspace multi-repo **Garlic** (SaaS-starter da
-G3 Software). Resolve: detecção automática de workspace, bootstrap de
+Plugin do Claude Code pro workspace multi-repo **Garlic** (SaaS-starter).
+Resolve: detecção automática de workspace, bootstrap de
 produto novo, rebrand, montagem do HQ no Notion, e medição de tempo/token
 por task.
 

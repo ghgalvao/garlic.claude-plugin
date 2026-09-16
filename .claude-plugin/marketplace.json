@@ -1,7 +1,7 @@
 {
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "garlic",
-  "description": "Continuidade agêntica + bootstrap de produto pro workspace multi-repo Garlic (G3 Software).",
+  "description": "Continuidade agêntica + bootstrap de produto pro workspace multi-repo Garlic.",
   "owner": {
     "name": "Gabriel Galvão"
   },
