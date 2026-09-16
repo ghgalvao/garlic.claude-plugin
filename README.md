@@ -36,8 +36,13 @@ o prompt do comando já embute os passos, não depende de ter clonado
 
 ## Instalar
 
-(preencher depois de validar o mecanismo de instalação local do Claude Code
-pra plugin — marketplace local vs `.claude/plugins/` direto)
+```
+claude plugin marketplace add https://gitlab.com/planodeominacao/garlic.claude-plugin.git
+claude plugin install garlic@garlic
+```
+
+Reiniciar a sessão do Claude Code depois de instalar — `/garlic:new` só aparece
+na sessão seguinte.
 
 ## Estrutura
 
@@ -46,7 +51,8 @@ pra plugin — marketplace local vs `.claude/plugins/` direto)
   plugin.json        # manifesto — nome, hooks
   marketplace.json    # pra listar num marketplace, se um dia publicar
 commands/
-  new.toml            # /garlic:new
+  new.toml            # /garlic:new — description + prompt numa linha só
+                       # (\n escapado pra quebra; TOML multi-linha """...""" não é reconhecido)
 hooks/
   garlic-detect.js    # SessionStart
 ```
