@@ -31,7 +31,7 @@ Antes de tudo, ler `notion://docs/enhanced-markdown-spec` — sintaxe de
    uma página (`notion-move-pages`) depois de já referenciada numa coluna
    quebra a referência (vira bloco `<page>` órfão) — criar toda a hierarquia
    antes de montar as `<columns>`, nunca depois.
-   - `🧄 Repos` (+ 5 filhas: `<produto>.frontend/.infra/.automations/.backend/.docs`,
+   - `🧄 Repos` (+ 5 filhas: `<produto>-frontend/-infra/-automations/-backend/-docs`,
      link `<url-do-repo>` placeholder), `☁️ Hospedagem`, `🗄️ Banco de dados`
      — filhas diretas do HQ (**não criar uma página "Infra" intermediária**
      — "Infra" é só rótulo de coluna). Conteúdo completo em

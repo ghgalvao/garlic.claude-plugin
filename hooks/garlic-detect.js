@@ -2,12 +2,16 @@
 // garlic plugin — SessionStart detection hook
 //
 // Roda em toda sessão nova. Se o cwd estiver dentro de um workspace no
-// formato Garlic (repos irmãos <produto>.frontend/.infra/.automations/
-// .backend/.docs), emite pro contexto onde fica o cérebro global (.docs)
-// e o cérebro local (project/ ou docs/ do repo atual) — sem isso, sessão
-// nova não tem sinal nenhum de que está num multi-root e perde tempo
-// inferindo (ver garlic.docs/task-master.md, pendência registrada em
-// 2026-08-25 a partir de um teste real com o clone foodpdv).
+// formato Garlic (repos irmãos <produto>-frontend/-infra/-automations/
+// -backend/-docs, ou <produto>.frontend/etc no template original), emite
+// pro contexto onde fica o cérebro global (.docs) e o cérebro local
+// (project/ ou docs/ do repo atual) — sem isso, sessão nova não tem sinal
+// nenhum de que está num multi-root e perde tempo inferindo.
+//
+// Aceita ponto OU hífen como separador (ver garlic.docs/task-master.md,
+// lição de 2026-09-25): o template em si usa ponto (garlic.frontend), mas
+// todo produto real feito com /garlic:new usa hífen (jocatisaas-frontend)
+// — regex só com ponto nunca detectava workspace de produto nenhum.
 //
 // Silencioso (sem stdout) se não detectar o padrão — não deve poluir
 // sessão em repo qualquer que não seja Garlic.
@@ -16,7 +20,7 @@ const fs = require('fs');
 const path = require('path');
 
 const ROLES = ['frontend', 'infra', 'automations', 'backend', 'docs'];
-const ROLE_RE = new RegExp(`^(.+)\\.(${ROLES.join('|')})$`);
+const ROLE_RE = new RegExp(`^(.+)([.-])(${ROLES.join('|')})$`);
 
 function findRepoRoot(startDir) {
   let cur = startDir;
@@ -42,16 +46,18 @@ if (!repoRoot) process.exit(0);
 
 const repoName = path.basename(repoRoot);
 const curMatch = repoName.match(ROLE_RE);
-if (!curMatch) process.exit(0); // repo não segue a convenção <produto>.<role>
+if (!curMatch) process.exit(0); // repo não segue a convenção <produto>[.-]<role>
 
-const [, produto, curRole] = curMatch;
+const [, produto, sep, curRole] = curMatch;
 const reposParent = path.dirname(repoRoot);
 const siblings = safeReadDir(reposParent).filter((d) => d.isDirectory());
 
 const found = {};
 for (const d of siblings) {
   const m = d.name.match(ROLE_RE);
-  if (m && m[1] === produto) found[m[2]] = path.join(reposParent, d.name);
+  // mesmo produto E mesmo separador — evita misturar "foo.docs" (outro
+  // workspace, ou o template) com "foo-frontend" como se fossem irmãos.
+  if (m && m[1] === produto && m[2] === sep) found[m[3]] = path.join(reposParent, d.name);
 }
 
 // Exige pelo menos 2 papéis do MESMO produto (o atual + 1 irmão) — evita
@@ -67,7 +73,7 @@ const localBrainDir = ['project', 'docs']
 const lines = [];
 lines.push(`WORKSPACE GARLIC DETECTADO — produto "${produto}".`);
 lines.push(`Repo atual: ${repoName} (papel: ${curRole}).`);
-lines.push(`Repos irmãos encontrados: ${rolesFound.map((r) => `${produto}.${r}`).join(', ')}.`);
+lines.push(`Repos irmãos encontrados: ${rolesFound.map((r) => `${produto}${sep}${r}`).join(', ')}.`);
 
 if (docsPath && curRole !== 'docs') {
   lines.push(
