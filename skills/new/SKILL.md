@@ -74,9 +74,32 @@ Executar de verdade via Bash (não só descrever), na ordem:
 4. **Corrigir o `.code-workspace`**: dentro de `<produto>-docs`, renomear
    `garlic.code-workspace` → `<produto>.code-workspace`, trocar os 4 paths
    (`../garlic.<parte>` → `../<produto>-<parte>`) e o `typescript.tsdk`.
-   Confirmar abrindo o arquivo (conteúdo, não a UI) depois — os paths têm
-   que bater exatamente com o nome real das 5 pastas locais (`ls ..` pra
-   conferir, não assumir).
+
+   **Verificar de forma automática, não visual** — abrir o arquivo e "olhar"
+   já falhou antes (lição de 2026-09-25: essa etapa ficou errada em mais de
+   um produto criado antes desta correção, sem ninguém notar até abrir o
+   editor). Rodar de verdade, a partir de `$BASE/<produto>-docs`:
+   ```
+   node -e '
+     const fs = require("fs");
+     const path = require("path");
+     const ws = JSON.parse(fs.readFileSync("<produto>.code-workspace", "utf-8"));
+     let bad = 0;
+     for (const f of ws.folders) {
+       if (!fs.existsSync(path.resolve(f.path))) { console.error("QUEBRADO:", f.path); bad++; }
+     }
+     // tsdk aponta pra dentro de node_modules, que só existe depois do
+     // pnpm install — checar só a pasta raiz referenciada, não o caminho
+     // inteiro (senão falso-positivo antes do install rodar).
+     const tsdkRoot = ws.settings["typescript.tsdk"].split("/node_modules/")[0];
+     if (!fs.existsSync(path.resolve(tsdkRoot))) { console.error("QUEBRADO: typescript.tsdk ->", tsdkRoot); bad++; }
+     process.exit(bad ? 1 : 0);
+   '
+   ```
+   Saiu `QUEBRADO` em qualquer linha = path errado, corrigir antes de seguir
+   — nunca reportar este passo como concluído com esse comando falhando.
+   (Testado 2026-09-25 contra `jocatisaas.code-workspace` real: pega o caso
+   quebrado — path com ponto que não existe — e passa limpo no caso certo.)
 
 5. **Renomear todo vestígio interno de "garlic"** — isto é identidade
    técnica (nome), não marca (cor/fonte). Não espera o dev decidir cor/fonte
