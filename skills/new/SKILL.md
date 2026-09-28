@@ -64,12 +64,15 @@ Executar de verdade via Bash (não só descrever), na ordem:
    antes de tentar de novo.
 
 3. **Perguntar** se o dev já quer criar os remotes novos (GitLab/GitHub) e
-   dar push (branch `master` + branch `develop` a partir dela). Só fazer se
-   confirmado — não assumir, não criar remote sem o dev ter os 5 projetos
-   vazios prontos do outro lado. **Confirmar que o slug dos 5 projetos
-   remotos usa hífen** (`<produto>-frontend`, etc) — se o dev já criou com
-   outro separador, usar o mesmo separador em TUDO daqui pra frente (passo
-   4 incluso), não misturar.
+   dar push. **`<produto>-docs` é sempre só `master`, nunca cria `develop`**
+   — é documentação/cérebro vivo, não passa por pipeline de release, não
+   segue gitflow. Os outros 4 (`-frontend`, `-infra`, `-automations`,
+   `-backend`) recebem `master` + branch `develop` a partir dela. Só fazer
+   push se confirmado — não assumir, não criar remote sem o dev ter os 5
+   projetos vazios prontos do outro lado. **Confirmar que o slug dos 5
+   projetos remotos usa hífen** (`<produto>-frontend`, etc) — se o dev já
+   criou com outro separador, usar o mesmo separador em TUDO daqui pra
+   frente (passo 4 incluso), não misturar.
 
 4. **Corrigir o `.code-workspace`**: dentro de `<produto>-docs`, renomear
    `garlic.code-workspace` → `<produto>.code-workspace`, trocar os 4 paths
@@ -131,59 +134,60 @@ Executar de verdade via Bash (não só descrever), na ordem:
    a string `Garlic.Backend` pra `<Produto>.Backend` dentro do `.sln` e do
    `.http`.
 
-   5.2. **Toda string "garlic" nos 5 repos — sempre `-i`:**
+   5.2. **Toda string "garlic" nos 5 repos — 1 script em lote, não busca
+   manual arquivo por arquivo.** **Lição de 2026-09-28 (teste `promonelson`):**
+   a versão anterior deste passo listava ~10 categorias pra caçar na mão
+   (variável CSS, classe Tailwind, animação, localStorage, rota Vite,
+   `package.json`, traduções, `index.html`, fixture de dev, comentário) —
+   virava 30+ tool calls de edição individual, e o agente abandonava no meio
+   sem terminar (reportava sucesso ou simplesmente parava antes do passo 6).
+   Isso sozinho já cobre a esmagadora maioria — TODA string "garlic" nos 5
+   repos, incluindo tudo daquela lista antiga, sem precisar enumerar
+   categoria por categoria:
    ```
-   grep -rni "garlic" --exclude-dir=node_modules --exclude-dir=.git --exclude-dir=bin --exclude-dir=obj .
+   for repo in <produto>-frontend <produto>-infra <produto>-automations <produto>-backend <produto>-docs; do
+     cd "$BASE/$repo"
+     files=$(grep -rIl "garlic" --exclude-dir=node_modules --exclude-dir=.git \
+       --exclude-dir=bin --exclude-dir=obj --exclude="pnpm-lock.yaml" \
+       --exclude="package-lock.json" -i .)
+     echo "$files" | while IFS= read -r f; do
+       [ -z "$f" ] && continue
+       sed -i 's/Garlic\.Backend/<Produto>.Backend/g; s/Garlic/<Produto>/g; s/garlic/<produto>/g' "$f"
+     done
+   done
    ```
-   rodado em cada um dos 5 repos. Cobre pelo menos, além da prosa em `.md`:
-   - **Prefixo de variável CSS** — `apps/<produto>/src/index.css` (`@theme`,
-     ambos os temas) e `apps/<produto>/src/app/styles/theme.css`:
-     `--color-garlic-*` → `--color-<produto>-*`. O Tailwind v4 deriva a
-     classe utilitária do nome da variável, então essa troca sozinha não
-     move as classes já escritas nos componentes (`bg-garlic-*`,
-     `text-garlic-*`, `border-garlic-*`) — precisa de um segundo replace
-     dessas classes em todo `.tsx`/`.ts` de `apps/<produto>/src`.
-   - **Nome de animação** — `--animate-garlic-spin` / `@keyframes garlic-spin`
-     em `index.css`, e a classe `animate-garlic-spin` onde for usada.
-   - **Chaves de localStorage** — `ThemeContext.tsx` (`'garlic-theme'`) e
-     `mockOverrides.ts` (`'garlic:mock-overrides'`).
-   - **Rotas/plugins do Vite dev server** — `vite.config.ts`:
-     `'garlic-env-writer'`/`'garlic-globals-css-writer'` (nome do plugin) e
-     `/__garlic/write-env`/`/__garlic/write-globals-css'` (rota); atualizar
-     os dois lados (definição no `vite.config.ts` e o `fetch()` que chama a
-     rota em `EnvGeneratorCard.tsx`/`BrandingPanel.tsx`).
-   - **`package.json`** — campo `"name"` nos 3 níveis que existirem, e
-     qualquer `pnpm --filter garlic <script>` no root (`pnpm --filter
-     <produto> <script>`).
-   - **`translations/*.json`** — chaves `header.brand`/`shared.brand` e
-     qualquer texto literal "Garlic"/"garlic.docs"/"garlic.frontend"/etc no
-     dicionário da GuidePage (vira `<produto>-docs`/`<produto>-frontend`/etc,
-     com hífen, pra bater com o nome real dos repos no GitLab).
-   - **`apps/<produto>/index.html`** — `<title>Garlic</title>` →
-     `<title><produto></title>`.
-   - **Fixture de dev** — `app/config/supabase/fixtures.ts` e
-     `mockClient.ts` têm `dev@garlic.local` → `dev@<produto>.local` (aparece
-     logado no canto da tela em qualquer demo/screenshot).
-   - **Comentários de código que citam produto anterior por nome** — se o
-     histórico do template tiver uma limpeza de contaminação registrada
-     (`lessons.md`/`task-master.md`/`CHANGELOG.md` do template-fonte),
-     qualquer comentário vivo que ainda cite o nome do produto antigo por
-     extenso também sai — trocar por "produto anterior" ou remover.
+   **Única exceção que o replace em lote quebra, corrigir logo depois:** o
+   arquivo `theme.css` (renomeado no passo 5.1 SEM prefixo de produto, de
+   propósito) tem seu próprio nome citado em prosa/import em vários lugares
+   (`index.css`, `DESIGN.md`, traduções da GuidePage, `.design-sync/NOTES.md`)
+   — o sed acima transforma essas citações em `<produto>-theme.css`, que não
+   existe. Corrigir por cima, em `<produto>-frontend`:
+   ```
+   cd "$BASE/<produto>-frontend"
+   sed -i 's/<produto>-theme\.css/theme.css/g' $(grep -rIl "<produto>-theme.css" --exclude-dir=node_modules --exclude-dir=.git .)
+   ```
+   `<Produto>` em PascalCase casa sozinho com `Garlic.Backend`→`<Produto>.Backend`
+   (`.sln`/`.csproj`/`.http`) porque o sed roda essa troca primeiro, antes do
+   replace genérico de "Garlic". Convenção de hífen nos nomes de repo
+   (`<produto>-docs`, etc) já sai certa do replace porque o texto de origem já
+   usa hífen (`garlic.frontend` → vira `<produto>.frontend` se a fonte já
+   citava com ponto, `garlic-frontend` → `<produto>-frontend` se já era
+   hífen — o replace preserva o separador que já estava escrito, não
+   precisa tratar à parte).
 
    5.3. **Verificar — obrigatório antes de seguir pro passo 6:**
    ```
-   grep -rni "garlic" --exclude-dir=node_modules --exclude-dir=.git --exclude-dir=bin --exclude-dir=obj .
+   grep -rni "garlic" --exclude-dir=node_modules --exclude-dir=.git --exclude-dir=bin --exclude-dir=obj --exclude="pnpm-lock.yaml" --exclude="package-lock.json" .
    ```
-   rodado em cada um dos 5 repos **tem que voltar vazio** (fora
-   `package-lock.json`/`pnpm-lock.yaml`, que resolvem sozinhos no próximo
-   install) — critério de sucesso é o grep zerado, não "rodei os passos".
-   Depois:
+   rodado em cada um dos 5 repos **tem que voltar vazio** — critério de
+   sucesso é o grep zerado, não "rodei o script". Depois:
    ```
    pnpm install && pnpm build   # em <produto>-frontend
    dotnet build                 # em <produto>-backend
    ```
    Não reportar este passo como concluído sem grep vazio e os dois builds
-   verdes.
+   verdes. Se `pnpm build` falhar em "Can't resolve './app/styles/<produto>-theme.css'",
+   é a exceção do `theme.css` acima não aplicada — rodar de novo.
 
 6. **Instruir o dev, de forma explícita no report final, a abrir o
    workspace no editor** — `File → Open Workspace from File…` →
