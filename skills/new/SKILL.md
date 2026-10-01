@@ -1,15 +1,17 @@
 ---
 name: new
 description: >
-  Bootstrapar um produto novo a partir do template Garlic (clona os 5 repos,
-  corta o histórico git, cria a branch develop, corrige o .code-workspace).
-  Use quando o usuário digitar /garlic:new <produto>, ou pedir pra "iniciar
-  um produto novo com o Garlic" / "bootstrapar em cima do template".
+  Bootstrapar um produto novo a partir do template Garlic (lê ou gera o
+  .code-workspace, clona só os repos que ele lista, corta o histórico git,
+  cria a branch develop). Use quando o usuário digitar /garlic:new <produto>,
+  ou pedir pra "iniciar um produto novo com o Garlic" / "bootstrapar em cima
+  do template".
 ---
 
 Bootstrapar um produto novo a partir do template Garlic. O nome do produto
-vem em `args` (texto digitado depois de `/garlic:new`) — se vazio, perguntar
-o nome (minúsculo, sem espaço) antes de continuar.
+vem em `args` (texto digitado depois de `/garlic:new`) — se vazio, e não
+houver um `.code-workspace` em `$BASE` pra extrair o nome, perguntar antes de
+continuar (minúsculo, sem espaço).
 
 Repos-fonte: grupo GitLab `gitlab.com/planodeominacao`, privados —
 `garlic.frontend`, `garlic.infra`, `garlic.automations`, `garlic.backend`,
@@ -31,32 +33,77 @@ com hífen** — não assumir, perguntar uma vez e seguir consistente.
 
 Executar de verdade via Bash (não só descrever), na ordem:
 
-1. **Clonar os 5 repos** no diretório atual, renomeando já no clone, e
-   capturar o diretório base logo depois:
+1. **Garantir que existe um `.code-workspace` correto em `$BASE` (diretório
+   atual), e clonar só os repos que ele lista.** **Mudança de 2026-10-01:** o
+   workspace file passou a ser a fonte única de verdade de quais repos este
+   produto usa — gerado ANTES de clonar (pela landing page, `Começar`, ou
+   aqui mesmo se o dev não passou por ela), nunca mais corrigido DEPOIS
+   (eliminou o passo frágil de "renomear + trocar 4 paths" que já ficou
+   errado sem ninguém notar, lição de 2026-09-25).
    ```
-   mkdir -p <produto> && cd <produto>
-   git clone https://gitlab.com/planodeominacao/garlic.frontend.git <produto>-frontend
-   git clone https://gitlab.com/planodeominacao/garlic.infra.git <produto>-infra
-   git clone https://gitlab.com/planodeominacao/garlic.automations.git <produto>-automations
-   git clone https://gitlab.com/planodeominacao/garlic.backend.git <produto>-backend
-   git clone https://gitlab.com/planodeominacao/garlic.docs.git <produto>-docs
    BASE="$(pwd)"
    ```
+   Capturar isso primeiro — é a pasta onde o dev já está (se veio da landing,
+   ele já criou a pasta, salvou e abriu o arquivo antes de rodar este
+   comando; se não veio, é só a pasta atual mesmo).
+
+   1.1. **Checar se já existe `*.code-workspace` em `$BASE`:**
+   - **Existe** (fluxo normal, veio da landing) → ler o JSON, extrair de
+     `folders[].path` quais `<parte>` foram escolhidas (cada path é
+     `<produto>-<parte>`) e o `<produto>` (prefixo antes do primeiro `-`).
+     `docs` TEM que estar na lista — se não estiver, avisar o dev e incluir
+     mesmo assim, nunca pular (é o cérebro que ancora os outros repos).
+   - **Não existe** (dev rodou o comando direto, sem passar pela landing) →
+     perguntar nome do produto + quais dos 5 repos ele quer (default: todos;
+     `docs` não é opcional) e **gerar o arquivo agora**, em
+     `$BASE/<produto>.code-workspace`, no MESMO formato que a landing gera
+     (`garlic.landing`'s `GarlicGenerator.buildWorkspaceFile` — nunca
+     divergir desse formato):
+     ```json
+     {
+       "folders": [
+         { "name": "🧠 docs", "path": "<produto>-docs" },
+         { "name": "🖥️ frontend", "path": "<produto>-frontend" }
+       ],
+       "settings": {
+         "editor.formatOnSave": true,
+         "editor.defaultFormatter": "esbenp.prettier-vscode",
+         "files.exclude": { "**/node_modules": true, "**/dist": true, "**/bin": true, "**/obj": true },
+         "search.exclude": { "**/node_modules": true, "**/dist": true, "**/pnpm-lock.yaml": true }
+       },
+       "extensions": { "recommendations": ["esbenp.prettier-vscode", "dbaeumer.vscode-eslint"] }
+     }
+     ```
+     (exemplo só com docs+frontend — cresce conforme a seleção: emoji por
+     parte é 🧠 docs, 🖥️ frontend, 🛠️ infra, 🕷️ automations, 🔧 backend;
+     `typescript.tsdk: "<produto>-frontend/node_modules/typescript/lib"`
+     entra em `settings` só se `frontend` estiver escolhido;
+     `bradlc.vscode-tailwindcss` só se `frontend`, `denoland.vscode-deno` só
+     se `infra`, `ms-dotnettools.csdevkit` só se `backend`.)
+
+   1.2. **Clonar só os repos da lista**, direto em `$BASE` — nunca criar
+   subpasta nova (se o arquivo já existia, o dev já fez a pasta certa):
+   ```
+   git clone https://gitlab.com/planodeominacao/garlic.<parte>.git "$BASE/<produto>-<parte>"
+   ```
+   Repetir só pras `<parte>` presentes no workspace file.
+
    **Cwd fica pendurado em `$BASE` entre chamadas de tool** (Bash persiste
    diretório entre execuções) — nunca assumir que voltou pra raiz sozinho.
    Todo passo seguinte abre com `cd "$BASE/<produto>-<parte>"` **absoluto**,
    nunca `cd <produto>-<parte>` relativo.
 
-2. **Cortar a história** de cada uma das 5 pastas, a partir de `$BASE`:
+2. **Cortar a história** de cada repo clonado, a partir de `$BASE` (só os
+   presentes no workspace, não mais fixo em 5):
    ```
    cd "$BASE/<produto>-frontend" && rm -rf .git && git init -q && git add -A \
      && git commit -q -m "Initial commit: <produto>-frontend (a partir do template Garlic)" \
      && git log --oneline
    ```
-   Repetir pras outras 4 (`-infra`, `-automations`, `-backend`, `-docs`),
-   sempre abrindo com `cd "$BASE/<produto>-<parte>"` absoluto primeiro.
-   Perguntar nome/e-mail git do dev **antes**, configurar `--local` em cada
-   repo — nunca mexer na config global do git.
+   Repetir pra cada repo presente, sempre abrindo com
+   `cd "$BASE/<produto>-<parte>"` absoluto primeiro. Perguntar nome/e-mail
+   git do dev **antes**, configurar `--local` em cada repo — nunca mexer na
+   config global do git.
 
    **Verificar cada uma:** `git log --oneline` do comando acima deve mostrar
    **exatamente 1 commit**. Mais que isso = cwd errado (rodou dentro do repo
@@ -66,22 +113,18 @@ Executar de verdade via Bash (não só descrever), na ordem:
 3. **Perguntar** se o dev já quer criar os remotes novos (GitLab/GitHub) e
    dar push. **`<produto>-docs` é sempre só `master`, nunca cria `develop`**
    — é documentação/cérebro vivo, não passa por pipeline de release, não
-   segue gitflow. Os outros 4 (`-frontend`, `-infra`, `-automations`,
-   `-backend`) recebem `master` + branch `develop` a partir dela. Só fazer
-   push se confirmado — não assumir, não criar remote sem o dev ter os 5
-   projetos vazios prontos do outro lado. **Confirmar que o slug dos 5
-   projetos remotos usa hífen** (`<produto>-frontend`, etc) — se o dev já
+   segue gitflow. Os outros repos presentes (`-frontend`, `-infra`,
+   `-automations`, `-backend`) recebem `master` + branch `develop` a partir
+   dela. Só fazer push se confirmado — não assumir, não criar remote sem o
+   dev ter os projetos vazios prontos do outro lado. **Confirmar que o slug
+   dos projetos remotos usa hífen** (`<produto>-frontend`, etc) — se o dev já
    criou com outro separador, usar o mesmo separador em TUDO daqui pra
-   frente (passo 4 incluso), não misturar.
+   frente, não misturar.
 
-4. **Corrigir o `.code-workspace`**: dentro de `<produto>-docs`, renomear
-   `garlic.code-workspace` → `<produto>.code-workspace`, trocar os 4 paths
-   (`../garlic.<parte>` → `../<produto>-<parte>`) e o `typescript.tsdk`.
-
-   **Verificar de forma automática, não visual** — abrir o arquivo e "olhar"
-   já falhou antes (lição de 2026-09-25: essa etapa ficou errada em mais de
-   um produto criado antes desta correção, sem ninguém notar até abrir o
-   editor). Rodar de verdade, a partir de `$BASE/<produto>-docs`:
+4. **Verificação rápida do workspace** — mais leve que antes, porque o
+   arquivo já nasceu certo no passo 1.1 (veio pronto da landing, ou foi
+   gerado aqui mesmo já com os paths certos — não tem mais "renomear depois"
+   pra verificar). Só confirmar que resolve de verdade, a partir de `$BASE`:
    ```
    node -e '
      const fs = require("fs");
@@ -91,18 +134,16 @@ Executar de verdade via Bash (não só descrever), na ordem:
      for (const f of ws.folders) {
        if (!fs.existsSync(path.resolve(f.path))) { console.error("QUEBRADO:", f.path); bad++; }
      }
-     // tsdk aponta pra dentro de node_modules, que só existe depois do
-     // pnpm install — checar só a pasta raiz referenciada, não o caminho
-     // inteiro (senão falso-positivo antes do install rodar).
-     const tsdkRoot = ws.settings["typescript.tsdk"].split("/node_modules/")[0];
-     if (!fs.existsSync(path.resolve(tsdkRoot))) { console.error("QUEBRADO: typescript.tsdk ->", tsdkRoot); bad++; }
+     if (ws.settings["typescript.tsdk"]) {
+       const tsdkRoot = ws.settings["typescript.tsdk"].split("/node_modules/")[0];
+       if (!fs.existsSync(path.resolve(tsdkRoot))) { console.error("QUEBRADO: typescript.tsdk ->", tsdkRoot); bad++; }
+     }
      process.exit(bad ? 1 : 0);
    '
    ```
-   Saiu `QUEBRADO` em qualquer linha = path errado, corrigir antes de seguir
-   — nunca reportar este passo como concluído com esse comando falhando.
-   (Testado 2026-09-25 contra `jocatisaas.code-workspace` real: pega o caso
-   quebrado — path com ponto que não existe — e passa limpo no caso certo.)
+   Saiu `QUEBRADO` em qualquer linha = o nome clonado no passo 1.2 não bate
+   com o path do arquivo — corrigir antes de seguir, nunca reportar este
+   passo como concluído com esse comando falhando.
 
 5. **Renomear todo vestígio interno de "garlic"** — isto é identidade
    técnica (nome), não marca (cor/fonte). Não espera o dev decidir cor/fonte
@@ -112,12 +153,16 @@ Executar de verdade via Bash (não só descrever), na ordem:
    rebrand — produto ficava com pasta/CSS/backend ainda chamados "garlic" por
    dias, e o grep de verificação era case-sensitive (`grep -rn "Garlic"`),
    nunca pegava a esmagadora maioria das ocorrências reais (minúsculas,
-   kebab-case). Agora: sempre roda aqui, grep sempre `-i`, escopo nos 5 repos.
+   kebab-case). Agora: sempre roda aqui, grep sempre `-i`, escopo nos repos
+   presentes (lidos do workspace file no passo 1, não mais fixo em 5).
 
    5.1. **Pasta e arquivos que carregam "garlic" no nome** — antes de
-   qualquer grep de conteúdo, porque nome de pasta/arquivo já é vestígio:
+   qualquer grep de conteúdo, porque nome de pasta/arquivo já é vestígio.
+   **Só roda a parte de `-frontend` se frontend estiver presente, só a parte
+   de `-backend` se backend estiver presente** — produto sem frontend não
+   tem `apps/garlic` pra renomear.
    ```
-   # em <produto>-frontend
+   # em <produto>-frontend, SE presente
    git mv apps/garlic apps/<produto>
    git mv apps/<produto>/src/app/styles/garlic-theme.css apps/<produto>/src/app/styles/theme.css
    ```
@@ -125,7 +170,7 @@ Executar de verdade via Bash (não só descrever), na ordem:
    arquivo, e qualquer path hardcoded pra `apps/garlic` nos `.md` do repo
    (`CLAUDE.md`, `README.md`, `project/*.md`).
    ```
-   # em <produto>-backend
+   # em <produto>-backend, SE presente
    git mv Garlic.Backend.csproj <Produto>.Backend.csproj
    git mv Garlic.Backend.sln <Produto>.Backend.sln
    git mv Garlic.Backend.http <Produto>.Backend.http
@@ -134,18 +179,18 @@ Executar de verdade via Bash (não só descrever), na ordem:
    a string `Garlic.Backend` pra `<Produto>.Backend` dentro do `.sln` e do
    `.http`.
 
-   5.2. **Toda string "garlic" nos 5 repos — 1 script em lote, não busca
-   manual arquivo por arquivo.** **Lição de 2026-09-28 (teste `promonelson`):**
-   a versão anterior deste passo listava ~10 categorias pra caçar na mão
-   (variável CSS, classe Tailwind, animação, localStorage, rota Vite,
-   `package.json`, traduções, `index.html`, fixture de dev, comentário) —
-   virava 30+ tool calls de edição individual, e o agente abandonava no meio
-   sem terminar (reportava sucesso ou simplesmente parava antes do passo 6).
-   Isso sozinho já cobre a esmagadora maioria — TODA string "garlic" nos 5
-   repos, incluindo tudo daquela lista antiga, sem precisar enumerar
-   categoria por categoria:
+   5.2. **Toda string "garlic" nos repos presentes — 1 script em lote, não
+   busca manual arquivo por arquivo.** **Lição de 2026-09-28 (teste
+   `promonelson`):** a versão anterior deste passo listava ~10 categorias
+   pra caçar na mão (variável CSS, classe Tailwind, animação, localStorage,
+   rota Vite, `package.json`, traduções, `index.html`, fixture de dev,
+   comentário) — virava 30+ tool calls de edição individual, e o agente
+   abandonava no meio sem terminar (reportava sucesso ou simplesmente parava
+   antes do passo 6). Isso sozinho já cobre a esmagadora maioria — TODA
+   string "garlic" nos repos presentes, incluindo tudo daquela lista antiga,
+   sem precisar enumerar categoria por categoria:
    ```
-   for repo in <produto>-frontend <produto>-infra <produto>-automations <produto>-backend <produto>-docs; do
+   for repo in <lista de <produto>-<parte> presentes>; do
      cd "$BASE/$repo"
      files=$(grep -rIl "garlic" --exclude-dir=node_modules --exclude-dir=.git \
        --exclude-dir=bin --exclude-dir=obj --exclude="pnpm-lock.yaml" \
@@ -156,12 +201,13 @@ Executar de verdade via Bash (não só descrever), na ordem:
      done
    done
    ```
-   **Única exceção que o replace em lote quebra, corrigir logo depois:** o
-   arquivo `theme.css` (renomeado no passo 5.1 SEM prefixo de produto, de
-   propósito) tem seu próprio nome citado em prosa/import em vários lugares
-   (`index.css`, `DESIGN.md`, traduções da GuidePage, `.design-sync/NOTES.md`)
-   — o sed acima transforma essas citações em `<produto>-theme.css`, que não
-   existe. Corrigir por cima, em `<produto>-frontend`:
+   **Única exceção que o replace em lote quebra, corrigir logo depois (só se
+   frontend presente):** o arquivo `theme.css` (renomeado no passo 5.1 SEM
+   prefixo de produto, de propósito) tem seu próprio nome citado em
+   prosa/import em vários lugares (`index.css`, `DESIGN.md`, traduções da
+   GuidePage, `.design-sync/NOTES.md`) — o sed acima transforma essas
+   citações em `<produto>-theme.css`, que não existe. Corrigir por cima, em
+   `<produto>-frontend`:
    ```
    cd "$BASE/<produto>-frontend"
    sed -i 's/<produto>-theme\.css/theme.css/g' $(grep -rIl "<produto>-theme.css" --exclude-dir=node_modules --exclude-dir=.git .)
@@ -179,20 +225,24 @@ Executar de verdade via Bash (não só descrever), na ordem:
    ```
    grep -rni "garlic" --exclude-dir=node_modules --exclude-dir=.git --exclude-dir=bin --exclude-dir=obj --exclude="pnpm-lock.yaml" --exclude="package-lock.json" .
    ```
-   rodado em cada um dos 5 repos **tem que voltar vazio** — critério de
-   sucesso é o grep zerado, não "rodei o script". Depois:
+   rodado em cada repo presente **tem que voltar vazio** — critério de
+   sucesso é o grep zerado, não "rodei o script". Depois, só os builds dos
+   repos que existem:
    ```
-   pnpm install && pnpm build   # em <produto>-frontend
-   dotnet build                 # em <produto>-backend
+   pnpm install && pnpm build   # em <produto>-frontend, SE presente
+   dotnet build                 # em <produto>-backend, SE presente
    ```
-   Não reportar este passo como concluído sem grep vazio e os dois builds
-   verdes. Se `pnpm build` falhar em "Can't resolve './app/styles/<produto>-theme.css'",
+   Não reportar este passo como concluído sem grep vazio e os builds
+   aplicáveis verdes. Se `pnpm build` falhar em "Can't resolve './app/styles/<produto>-theme.css'",
    é a exceção do `theme.css` acima não aplicada — rodar de novo.
 
-6. **Instruir o dev, de forma explícita no report final, a abrir o
-   workspace no editor** — `File → Open Workspace from File…` →
-   `<produto>-docs/<produto>.code-workspace`. Nunca abrir só uma das 5
-   pastas soltas (perde a navegação multi-root entre frontend/infra/
+6. **Instruir o dev a abrir o workspace, se ainda não abriu.** Fluxo normal
+   (veio da landing, passo 1.1 achou o arquivo pronto): ele já abriu ANTES de
+   rodar esse comando — só confirmar no report que é a mesma pasta. Fluxo
+   clássico (passo 1.1 teve que gerar o arquivo agora): instruir a abrir
+   agora — `File → Open Workspace from File…` → `<produto>.code-workspace`
+   em `$BASE`. Nunca abrir só uma das pastas soltas (perde a navegação
+   multi-root entre os repos presentes — frontend/infra/
    automations/backend/docs).
 
 7. **Parar aqui** — não escolher cor/fonte automaticamente, isso é decisão
@@ -200,12 +250,12 @@ Executar de verdade via Bash (não só descrever), na ordem:
    depende disso). Quando ele quiser aplicar cor/fonte: skill
    `garlic:rebrand` (mesmo plugin).
 
-Se algum dos 5 repos clonados tiver `.agent/workflows/bootstrap-new-product.md`
+Se algum dos repos clonados tiver `.agent/workflows/bootstrap-new-product.md`
 (normalmente em `<produto>-docs`), usar como referência/conferência do
 processo acima — não repetir do zero se já bater com o que está descrito aqui.
 
 Ao final, reportar exatamente o que foi feito (passos 1-6), **destacar o
 comando pra abrir o workspace** (`File → Open Workspace from File…` →
-`<produto>-docs/<produto>.code-workspace`), e o que ficou pendente (cor/fonte
+`<produto>.code-workspace`, na pasta `$BASE`), e o que ficou pendente (cor/fonte
 via `/garlic:rebrand`, Notion via `bootstrap-notion.md`, push se não
 confirmado no passo 3).
