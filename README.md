@@ -58,6 +58,20 @@ O hook de detecção reconhece o workspace pela pasta `*-docs` irmã cujo
 `.code-workspace` liste o repo atual — repos com qualquer nome funcionam.
 Mecanismo real = `skills/adopt/SKILL.md`.
 
+## `/garlic:design` — auditar a UI (tirar o "visual de IA")
+
+Auditoria de UI na arquitetura Garlic, inspirada no Impeccable mas sem
+depender dele. Roda um lint mecânico (`skills/design/scripts/design-lint.mjs`,
+Node puro, sem dependências: cor literal, paleta padrão do Tailwind, gradiente
+em texto, borda forte, HTML cru, `<img>` sem alt, texto hardcoded fora do
+i18n…) e depois um julgamento guiado (cara de IA, hierarquia, estados,
+responsivo, contraste nos dois temas), corrigindo com tokens e componentes do
+`@banana/ui`. Mudança de direção visual é proposta, nunca aplicada sozinha.
+
+```
+/garlic:design LoginPage
+```
+
 ## `/garlic:rebrand` — aplicar cor/fonte/nome no produto já bootstrapado
 
 Companheira do `/garlic:new`: pega os valores exatos (nome, 5 cores, 2
@@ -160,6 +174,7 @@ na sessão seguinte.
 skills/
   new/SKILL.md          # /garlic:new — mecanismo real, é isso que o Claude Code lê
   adopt/SKILL.md         # /garlic:adopt — idem
+  design/SKILL.md        # /garlic:design — idem (+ scripts/design-lint.mjs)
   rebrand/SKILL.md       # /garlic:rebrand — idem
   notion/SKILL.md        # /garlic:notion — idem
   ci/SKILL.md            # /garlic:ci — idem
@@ -169,6 +184,7 @@ skills/
 commands/
   new.toml             # /garlic:new — só compat cruzada (Gemini CLI etc), ignorado pelo Claude Code
   adopt.toml            # /garlic:adopt — idem
+  design.toml           # /garlic:design — idem
   rebrand.toml          # /garlic:rebrand — idem, texto duplicado do SKILL.md, manter em sync
   notion.toml           # /garlic:notion — idem
   ci.toml               # /garlic:ci — idem
