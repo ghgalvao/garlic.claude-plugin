@@ -43,6 +43,21 @@ formato); Claude Code em si nunca leu isso como slash command. Mesmo padrão
 do plugin `caveman`: ele também mantém `commands/*.toml` só de brinde, quem
 funciona de verdade lá é `skills/*/SKILL.md`.
 
+## `/garlic:adopt` — usar o Garlic num projeto que já existe
+
+Para quem já tem código e só quer o jeito Garlic de trabalhar: traz a pasta
+`docs` (cérebro obrigatório) a partir do template, gera o `.code-workspace`
+já apontando para as pastas existentes (com os nomes reais, sem renomear
+nada) e explica como adicionar mais pastas ao workspace.
+
+```
+/garlic:adopt meuproduto
+```
+
+O hook de detecção reconhece o workspace pela pasta `*-docs` irmã cujo
+`.code-workspace` liste o repo atual — repos com qualquer nome funcionam.
+Mecanismo real = `skills/adopt/SKILL.md`.
+
 ## `/garlic:rebrand` — aplicar cor/fonte/nome no produto já bootstrapado
 
 Companheira do `/garlic:new`: pega os valores exatos (nome, 5 cores, 2
@@ -144,6 +159,7 @@ na sessão seguinte.
   marketplace.json    # pra listar num marketplace, se um dia publicar
 skills/
   new/SKILL.md          # /garlic:new — mecanismo real, é isso que o Claude Code lê
+  adopt/SKILL.md         # /garlic:adopt — idem
   rebrand/SKILL.md       # /garlic:rebrand — idem
   notion/SKILL.md        # /garlic:notion — idem
   ci/SKILL.md            # /garlic:ci — idem
@@ -152,6 +168,7 @@ skills/
   task-end/SKILL.md      # /garlic:task-end — idem
 commands/
   new.toml             # /garlic:new — só compat cruzada (Gemini CLI etc), ignorado pelo Claude Code
+  adopt.toml            # /garlic:adopt — idem
   rebrand.toml          # /garlic:rebrand — idem, texto duplicado do SKILL.md, manter em sync
   notion.toml           # /garlic:notion — idem
   ci.toml               # /garlic:ci — idem

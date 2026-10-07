@@ -46,7 +46,37 @@ if (!repoRoot) process.exit(0);
 
 const repoName = path.basename(repoRoot);
 const curMatch = repoName.match(ROLE_RE);
-if (!curMatch) process.exit(0); // repo não segue a convenção <produto>[.-]<role>
+if (!curMatch) {
+  // Projeto adotado (/garlic:adopt): nome livre. Detecta por pasta *-docs / *.docs irmã
+  // com um .code-workspace que liste este repo.
+  const parent = path.dirname(repoRoot);
+  for (const d of safeReadDir(parent)) {
+    if (!d.isDirectory() || !/[.-]docs$/.test(d.name)) continue;
+    const docsDir = path.join(parent, d.name);
+    for (const f of safeReadDir(docsDir)) {
+      if (!f.isFile() || !f.name.endsWith('.code-workspace')) continue;
+      let ws;
+      try {
+        ws = JSON.parse(fs.readFileSync(path.join(docsDir, f.name), 'utf-8'));
+      } catch (e) {
+        continue; // workspace inválido: ignora
+      }
+      const folders = (ws.folders || []).map((x) => path.resolve(docsDir, x.path));
+      if (!folders.includes(repoRoot)) continue;
+      const local = ['project', 'docs'].map((x) => path.join(repoRoot, x)).find((p) => fs.existsSync(p));
+      const out = [
+        `WORKSPACE GARLIC DETECTADO (projeto adotado) — ${f.name}.`,
+        `Repo atual: ${repoName}.`,
+        `Cérebro GLOBAL (decisão de produto, cross-repo): ${docsDir} — ler CLAUDE.md/README.md de lá antes de qualquer tarefa que não seja puramente técnica deste repo, se ainda não leu nesta sessão.`,
+        `Pastas do workspace: ${folders.join(', ')}.`,
+      ];
+      if (local) out.push(`Cérebro LOCAL deste repo: ${local}.`);
+      process.stdout.write(out.join('\n'));
+      process.exit(0);
+    }
+  }
+  process.exit(0); // nem convenção <produto>[.-]<role> nem projeto adotado
+}
 
 const [, produto, sep, curRole] = curMatch;
 const reposParent = path.dirname(repoRoot);
