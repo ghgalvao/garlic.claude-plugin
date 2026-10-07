@@ -2,8 +2,8 @@
 
 Plugin do Claude Code pro workspace multi-repo **Garlic** (SaaS-starter).
 Resolve: detecção automática de workspace, bootstrap de
-produto novo, rebrand, montagem do HQ no Notion, e medição de tempo/token
-por task.
+produto novo, rebrand, montagem do HQ no Notion, CI/CD de deploy, e
+medição de tempo/token por task.
 
 ## `SessionStart` — detecção automática
 
@@ -71,6 +71,34 @@ novo que não esteja lá.
 
 Ver `skills/notion/SKILL.md`. Precisa do MCP do Notion conectado.
 
+## `/garlic:ci` — criar, ajustar ou diagnosticar o CI/CD de um produto
+
+Configura o deploy automático (GitLab → FTP em hospedagem Windows/IIS, ex.:
+hostazul) de um front estático (Vite/Astro) e/ou de uma API .NET: copia e
+adapta os templates, lista as variáveis do GitLab com as flags certas
+(Protect OFF, Expand variable reference OFF, Mask nas senhas), gera o
+`appsettings` no deploy sem segredo no repo e **verifica no ar** (janela de
+503 do `app_offline.htm` + impressões digitais da versão nova) em vez de
+confiar só no job verde.
+
+Nasceu de uma sessão real (site + API de um projeto de cliente, 07/10/2026) em que erros
+repetíveis custaram horas: `550` por `FTP_PATH` errado, senha corrompida por
+"Expand variable reference", `appsettings.Production.json` antigo no
+servidor sobrescrevendo a config nova (IIS roda em Production), caixa de
+e-mail criada com nome errado. O skill documenta cada armadilha.
+
+```
+/garlic:ci meuproduto
+```
+
+Ver `skills/ci/SKILL.md` e `skills/ci/templates/` (`static-site.gitlab-ci.yml`,
+`dotnet-api.gitlab-ci.yml`, `appsettings.Development.example.json`,
+`web.config`, `wait-deploy.sh`).
+
+> Nota: o `garlic.backend/.gitlab-ci.yml` ainda publica `self-contained
+> win-x86`; o Green Hunter já provou que `framework-dependent` (Any CPU)
+> sobe nessa hospedagem. Vale alinhar o template do backend com o skill.
+
 ## `/garlic:task-start` + `/garlic:task-end` — medir tempo/token de uma task
 
 Marca início e fim de uma task — duração e tokens (output + cache-read)
@@ -118,12 +146,15 @@ skills/
   new/SKILL.md          # /garlic:new — mecanismo real, é isso que o Claude Code lê
   rebrand/SKILL.md       # /garlic:rebrand — idem
   notion/SKILL.md        # /garlic:notion — idem
+  ci/SKILL.md            # /garlic:ci — idem
+  ci/templates/          # .gitlab-ci.yml (estático e .NET), appsettings exemplo, web.config, wait-deploy.sh
   task-start/SKILL.md    # /garlic:task-start — idem
   task-end/SKILL.md      # /garlic:task-end — idem
 commands/
   new.toml             # /garlic:new — só compat cruzada (Gemini CLI etc), ignorado pelo Claude Code
   rebrand.toml          # /garlic:rebrand — idem, texto duplicado do SKILL.md, manter em sync
   notion.toml           # /garlic:notion — idem
+  ci.toml               # /garlic:ci — idem
   task-start.toml        # /garlic:task-start — idem
   task-end.toml          # /garlic:task-end — idem
 hooks/

@@ -1,0 +1,71 @@
+# CI/CD — API .NET (framework-dependent, IIS in-process) + deploy FTP (hospedagem Windows/IIS).
+#   main → produção (automático a cada push/merge)
+# Variables exigidas (Settings → CI/CD → Variables, Protect OFF, Expand reference OFF,
+# Mask só em senhas/chaves de 8+ caracteres):
+#   FTP_HOST, FTP_USER, FTP_PASS, FTP_PATH (pasta da API vista pelo FTP)
+#   API_KEY            (exemplo de segredo da aplicação — troque/estenda conforme o produto)
+# Toda configuração nova da aplicação entra AQUI (jq + lista de variáveis obrigatórias)
+# e no appsettings.Development.example.json, com a variável ao lado do campo.
+# O appsettings.json NUNCA tem segredo real commitado: este CI gera na saída publicada.
+
+stages:
+  - deploy
+
+deploy_prod:
+  stage: deploy
+  image: mcr.microsoft.com/dotnet/sdk:8.0   # alinhar com o TargetFramework do .csproj
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+  before_script:
+    - apt-get update -qq && apt-get install -y -qq lftp jq
+  script:
+    # Falha cedo e com o nome da variável que faltou (evita deploy meio quebrado).
+    - |
+      for v in FTP_HOST FTP_USER FTP_PASS FTP_PATH API_KEY; do
+        if [ -z "$(printenv $v)" ]; then echo "Variável $v não definida"; exit 1; fi
+      done
+    # Framework-dependent, Any CPU. (self-contained win-x86 nunca foi confirmado subindo.)
+    - dotnet publish <Projeto>/<Projeto>.csproj -c Release -o publish
+    # Liga o log de stdout do ANCM (vem desligado): única forma de ver um 500.30 sem shell no host.
+    - mkdir -p publish/logs
+    - sed -i 's/stdoutLogEnabled="false"/stdoutLogEnabled="true"/' publish/web.config
+    # Gera o appsettings com jq (--arg escapa aspas, barra e $ da senha; --argjson p/ números).
+    - |
+      jq -n \
+        --arg key "$API_KEY" \
+        '{
+          Logging: { LogLevel: { Default: "Information", "Microsoft.AspNetCore": "Warning" } },
+          AllowedHosts: "*",
+          ApiKey: $key
+        }' > publish/appsettings.json
+    # O IIS roda em Production: appsettings.Production.json é carregado POR CIMA do appsettings.json.
+    # Um arquivo antigo (de publicação manual) no servidor sobrescreveria as credenciais novas.
+    # Gravar o mesmo conteúdo também em Production faz todo deploy substituir o do servidor.
+    - cp publish/appsettings.json publish/appsettings.Production.json
+    - rm -f publish/appsettings.Development.json
+    # app_offline.htm derruba o processo do IIS (libera o lock da .dll) durante o upload.
+    # É removido no after_script, mesmo se o upload falhar (senão a API fica offline).
+    - echo "Atualizando..." > app_offline.htm
+    - >
+      lftp -e "set ftp:ssl-force true; set ssl:verify-certificate no;
+      set ftp:use-site-utime no;
+      open -u $FTP_USER,$FTP_PASS $FTP_HOST;
+      put app_offline.htm -o $FTP_PATH/app_offline.htm;
+      quit"
+    - sleep 5
+    # SEM --delete: a pasta pode ter logs/outros arquivos.
+    - >
+      lftp -e "set ftp:ssl-force true; set ssl:verify-certificate no;
+      set ftp:use-site-utime no;
+      open -u $FTP_USER,$FTP_PASS $FTP_HOST;
+      mirror -R --no-perms --parallel=4 --verbose publish $FTP_PATH;
+      quit"
+  after_script:
+    - >
+      lftp -e "set ftp:ssl-force true; set ssl:verify-certificate no;
+      open -u $FTP_USER,$FTP_PASS $FTP_HOST;
+      rm -f $FTP_PATH/app_offline.htm;
+      quit"
+  environment:
+    name: production
+    url: https://<dominio-da-api>

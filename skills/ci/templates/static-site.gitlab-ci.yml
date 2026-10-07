@@ -1,0 +1,43 @@
+# CI/CD — build de front estático (Vite/Astro) + deploy FTP (hospedagem Windows/IIS).
+#   main → produção (automático a cada push/merge)
+# Variables exigidas (Settings → CI/CD → Variables, Protect OFF, Expand reference OFF):
+#   FTP_HOST, FTP_USER, FTP_PASS (Mask), FTP_PATH (pasta vista pelo FTP, não caminho de disco)
+# Se o produto usa pnpm: trocar o bloco before_script/script (ver comentários).
+
+stages:
+  - deploy
+
+deploy_prod:
+  stage: deploy
+  image: node:24
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+  cache:
+    key: npm-cache
+    paths:
+      - .npm
+  before_script:
+    # pnpm: corepack enable && corepack prepare pnpm@latest --activate && pnpm install --frozen-lockfile
+    - npm ci --cache .npm --prefer-offline
+    - apt-get update -qq && apt-get install -y -qq lftp
+  script:
+    - npm run build
+    # mirror -R = local→remoto. SEM --delete geral: a pasta do servidor pode ter coisas
+    # que o build não conhece. --no-perms: FTP IIS não suporta SITE CHMOD.
+    - >
+      lftp -e "set ftp:ssl-force true; set ssl:verify-certificate no;
+      set ftp:use-site-utime no;
+      open -u $FTP_USER,$FTP_PASS $FTP_HOST;
+      mirror -R --no-perms --parallel=4 --verbose dist $FTP_PATH;
+      quit"
+    # Limpeza OPCIONAL só de arquivos antigos conhecidos (depois do upload; nunca derruba o deploy).
+    # Curinga com espaço ou acento no nome pode não casar: conferir no ar. Remover o bloco se não precisar.
+    # - >
+    #   lftp -e "set ftp:ssl-force true; set ssl:verify-certificate no;
+    #   open -u $FTP_USER,$FTP_PASS $FTP_HOST;
+    #   cd $FTP_PATH;
+    #   mrm portfolio/*.jpg;
+    #   quit" || true
+  environment:
+    name: production
+    url: https://<dominio>
